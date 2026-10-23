@@ -88,10 +88,10 @@
     <div class="grid">
       <div><label>Monthly income</label><input id="income" type="number" step="0.01" inputmode="decimal"></div>
       <div><label>Fixed bills</label><input id="fixed" type="number" step="0.01" inputmode="decimal"></div>
-      <div><label>Extra for debt</label><input id="extra" type="number" step="0.01" inputmode="decimal"></div>
-      <div><label>Monthly debt budget</label><input id="debtBudget" type="number" step="0.01" inputmode="decimal" disabled></div>
+      <div><label>Total minimum payments</label><input id="minTotal" type="number" step="0.01" disabled></div>
+      <div><label>Extra for debt</label><input id="extraDebt" type="number" step="0.01" disabled></div>
     </div>
-    <div class="small" style="margin-top:6px">Debt budget = income minus fixed bills, minus anything you reserve. Enter the reserve as extra spend you want to hold back.</div>
+    <div class="small" style="margin-top:6px">Extra for debt = income minus fixed bills minus total minimums. Anything above the minimums goes to your highest-APR card.</div>
     <div id="plan" style="margin-top:10px"></div>
   </section>
 

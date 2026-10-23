@@ -6,7 +6,7 @@ const SEED = {
   cards: [],
   accounts: [],
   payments: [],
-  budget: { income: 1200, fixed: 130, extra: 0 }
+  budget: { income: 1200, fixed: 130 }
 };
 
 let state = load();
@@ -34,9 +34,18 @@ function totalOwed() {
   return state.cards.reduce((s, c) => s + (Number(c.balance) || 0), 0);
 }
 
+// Total left each month for debt after fixed bills (minimums plus extra).
 function debtBudget() {
-  const b = state.budget;
-  return num(b.income) - num(b.fixed) - num(b.extra);
+  return num(state.budget.income) - num(state.budget.fixed);
+}
+
+function totalMinimums() {
+  return state.cards.reduce((s, c) => s + num(c.min), 0);
+}
+
+// What's left after the minimums; this is the amount that goes to the highest-APR card.
+function extraForDebt() {
+  return debtBudget() - totalMinimums();
 }
 
 // Simulate paying minimums each month plus the budget, extra going to highest APR first.
@@ -98,8 +107,8 @@ function render() {
     }
   });
   const budget = debtBudget();
-  const mins = state.cards.reduce((s, c) => s + num(c.min), 0);
-  if (budget < mins) warns.push('Debt budget (' + money(budget) + ') is below the minimums (' + money(mins) + ').');
+  const mins = totalMinimums();
+  if (budget < mins) warns.push('Income after fixed bills (' + money(budget) + ') is below the total minimums (' + money(mins) + ').');
   $('#warnings').innerHTML = warns.length
     ? warns.map((w) => '<div class="warn">' + w + '</div>').join('')
     : '<div class="small">No warnings right now.</div>';
@@ -130,10 +139,10 @@ function render() {
   // Budget inputs
   $('#income').value = state.budget.income;
   $('#fixed').value = state.budget.fixed;
-  $('#extra').value = state.budget.extra;
-  $('#debtBudget').value = budget.toFixed(2);
+  $('#minTotal').value = totalMinimums().toFixed(2);
+  $('#extraDebt').value = extraForDebt().toFixed(2);
 
-  // Plan
+  // Plan: pays minimums first, then the extra, highest APR first.
   const sim = simulate(Math.max(budget, 0));
   if (!state.cards.length) {
     $('#plan').innerHTML = '<div class="small">Add cards to see a payoff plan.</div>';
@@ -147,7 +156,8 @@ function render() {
         '<div class="amt">' + (c.id in sim.payoff ? 'paid off ' + monthLabel(sim.payoff[c.id]) : '') + '</div></div>')
       .join('');
     $('#plan').innerHTML =
-      '<div class="small">Paying ' + money(budget) + ' a month. Estimated debt-free in ' + sim.months + ' month(s), about ' +
+      '<div class="small">Paying ' + money(budget) + ' a month (' + money(totalMinimums()) + ' minimums plus ' +
+      money(extraForDebt()) + ' extra). Estimated debt-free in ' + sim.months + ' month(s), about ' +
       money(sim.interest) + ' in interest. Cards with no APR entered are treated as 0%.</div>' + rows;
   }
 
@@ -162,12 +172,11 @@ function render() {
 }
 
 // Budget inputs
-['#income', '#fixed', '#extra'].forEach((sel) => {
+['#income', '#fixed'].forEach((sel) => {
   $(sel).addEventListener('change', () => {
     state.budget = {
       income: num($('#income').value),
-      fixed: num($('#fixed').value),
-      extra: num($('#extra').value)
+      fixed: num($('#fixed').value)
     };
     save();
   });
