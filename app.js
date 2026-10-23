@@ -10,6 +10,7 @@ const SEED = {
 };
 
 let state = load();
+state.accountLog = state.accountLog || [];
 
 function load() {
   try {
@@ -161,14 +162,28 @@ function render() {
       money(sim.interest) + ' in interest. Cards with no APR entered are treated as 0%.</div>' + rows;
   }
 
-  // History
-  $('#history').innerHTML = state.payments.slice(-15).reverse().map((p) => {
-    const card = state.cards.find((c) => c.id === p.cardId);
-    const from = state.accounts.find((a) => a.id === p.fromId);
-    return '<div class="row"><div><div class="name">' + (card ? card.name : 'Deleted card') + '</div>' +
-      '<div class="sub">' + p.date + ' · from ' + (from ? from.name : 'unknown') + '</div></div>' +
-      '<div class="amt">' + money(p.amount) + '</div></div>';
-  }).join('') || '<div class="small">No payments logged yet.</div>';
+  // Activity: card payments and debit account activity, newest first
+  const history = [
+    ...state.payments.map((p) => {
+      const card = state.cards.find((c) => c.id === p.cardId);
+      const from = state.accounts.find((a) => a.id === p.fromId);
+      return { date: p.date, title: card ? card.name : 'Deleted card', sub: 'payment from ' + (from ? from.name : 'unknown'), amount: -num(p.amount) };
+    }),
+    ...state.accountLog.map((e) => {
+      const acct = state.accounts.find((a) => a.id === e.accountId);
+      return {
+        date: e.date,
+        title: acct ? acct.name : 'Deleted account',
+        sub: e.note || (e.type === 'in' ? 'deposit' : 'spending'),
+        amount: e.type === 'in' ? num(e.amount) : -num(e.amount)
+      };
+    })
+  ].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 25);
+  $('#history').innerHTML = history.map((h) =>
+    '<div class="row"><div><div class="name">' + h.title + '</div><div class="sub">' + h.date + ' · ' + h.sub + '</div></div>' +
+    '<div class="amt ' + (h.amount < 0 ? 'neg' : 'pos') + '">' + money(h.amount) + '</div></div>'
+  ).join('') || '<div class="small">No activity logged yet.</div>';
+  $('#actAccount').innerHTML = state.accounts.map((a) => '<option value="' + a.id + '">' + a.name + '</option>').join('');
 }
 
 // Budget inputs
@@ -194,6 +209,27 @@ $('#logPay').addEventListener('click', () => {
   if (from) from.balance = Number((num(from.balance) - amount).toFixed(2));
   state.payments.push({ id: uid(), cardId, fromId, amount, date: $('#payDate').value || new Date().toISOString().slice(0, 10) });
   $('#payAmt').value = '';
+  save();
+});
+
+// Log debit account activity (deposits and spending)
+$('#logAct').addEventListener('click', () => {
+  const amount = num($('#actAmt').value);
+  const accountId = $('#actAccount').value;
+  const type = $('#actType').value;
+  const acct = state.accounts.find((a) => a.id === accountId);
+  if (!amount || !acct) return;
+  acct.balance = Number((num(acct.balance) + (type === 'in' ? amount : -amount)).toFixed(2));
+  state.accountLog.push({
+    id: uid(),
+    accountId,
+    type,
+    amount,
+    date: $('#actDate').value || new Date().toISOString().slice(0, 10),
+    note: $('#actNote').value.trim()
+  });
+  $('#actAmt').value = '';
+  $('#actNote').value = '';
   save();
 });
 
@@ -292,6 +328,7 @@ $('#importFile').addEventListener('change', async (e) => {
     const data = JSON.parse(await file.text());
     if (!Array.isArray(data.cards) || !Array.isArray(data.accounts)) throw new Error('Not a debt tracker file');
     state = data;
+    state.accountLog = data.accountLog || [];
     save();
   } catch (err) {
     alert('Could not import: ' + err.message);
@@ -300,6 +337,7 @@ $('#importFile').addEventListener('change', async (e) => {
 
 // Default payment date to today
 $('#payDate').value = new Date().toISOString().slice(0, 10);
+$('#actDate').value = new Date().toISOString().slice(0, 10);
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
